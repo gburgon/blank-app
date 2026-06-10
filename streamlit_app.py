@@ -21,19 +21,19 @@ st.set_page_config(
 def estilizar_fig(fig):
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="#faf2b2",
+        plot_bgcolor="white",
         font=dict(color="black"),
         title_font=dict(color="black"),
         legend_font=dict(color="black"),
         xaxis=dict(
-            gridcolor="#faf2b2",
-            zerolinecolor="#faf2b2",
+            gridcolor="#e8e8e8",
+            zerolinecolor="#e8e8e8",
             tickfont=dict(color="black"),
             title_font=dict(color="black")
         ),
         yaxis=dict(
-            gridcolor="#faf2b2",
-            zerolinecolor="#faf2b2",
+            gridcolor="#e8e8e8",
+            zerolinecolor="#e8e8e8",
             tickfont=dict(color="black"),
             title_font=dict(color="black")
         )
@@ -330,8 +330,13 @@ with col_mapa:
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
         )
-        st.plotly_chart(fig_mapa, use_container_width=True)
-        st.caption("💡 Use o seletor abaixo para explorar um estado específico.")
+        event = st.plotly_chart(fig_mapa, use_container_width=True, on_select="rerun", key="mapa_brasil")
+        if event and event.selection.points:
+            loc = event.selection.points[0].get("location")
+            if loc and loc in resumo_f["UF"].values:
+                st.session_state["uf_selecionada"] = loc
+                st.session_state["dropdown_uf"] = loc
+        st.caption("💡 Clique em um estado no mapa ou use o seletor ao lado para ver a análise detalhada.")
 
 
 # ============================================================
@@ -339,7 +344,9 @@ with col_mapa:
 # ============================================================
 with col_painel:
     ufs_disponiveis = sorted(resumo_f["UF"].dropna().unique())
-    uf_sel = st.selectbox("🔍 Selecione um estado", ["— escolha —"] + list(ufs_disponiveis))
+    opcoes_uf = ["— escolha —"] + list(ufs_disponiveis)
+    uf_sel = st.selectbox("🔍 Selecione um estado", opcoes_uf, key="dropdown_uf")
+    st.session_state["uf_selecionada"] = uf_sel
 
     if uf_sel == "— escolha —":
         st.info("Selecione um estado para ver a análise detalhada.")
@@ -432,7 +439,7 @@ regioes_map = {
 st.divider()
 st.subheader("📊 Análises gerais")
 
-tab1, tab2, tab3 = st.tabs(["🏅 Ranking de estados", "👥 Gênero", "📚 Categorias"])
+tab1, tab2, tab3, tab4 = st.tabs(["🏅 Ranking de estados", "👥 Gênero", "📚 Categorias", "🔍 Insights"])
 
 # ============================================================
 # TAB 1 — RANKING DE ESTADOS
@@ -462,14 +469,16 @@ with tab1:
         ))
         fig_rank.update_layout(
             barmode="stack",
-            height=420,
+            height=480,
             title=f"Top {top_n} estados — funil de participação",
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             margin={"t": 60, "b": 40, "l": 40, "r": 10},
             paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="#faf2b2",
+            plot_bgcolor="white",
         )
         st.plotly_chart(estilizar_fig(fig_rank), use_container_width=True)
+        with st.expander("ℹ️ Como ler este gráfico"):
+            st.caption("Cada barra é um estado. **Dourado** = premiadas, **azul** = foram à final mas não premiadas, **cinza** = não chegaram à final. Um estado com muita faixa cinza tem volume mas não converte — candidato a desenvolvimento. Use o slider acima para ajustar quantos estados exibir.")
 
     with col_r2:
         resumo_taxa = resumo_f[resumo_f["total_equipes"] >= 5].copy()
@@ -483,14 +492,16 @@ with tab1:
         )
         fig_taxa.update_traces(texttemplate="%{text}%", textposition="outside")
         fig_taxa.update_layout(
-            height=420,
+            height=480,
             showlegend=False,
             margin={"t": 60, "b": 40, "l": 40, "r": 60},
             paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="#faf2b2",
+            plot_bgcolor="white",
             yaxis=dict(autorange="reversed"),
         )
         st.plotly_chart(estilizar_fig(fig_taxa), use_container_width=True)
+        with st.expander("ℹ️ Como ler este gráfico"):
+            st.caption("Percentual de equipes que chegaram à fase final (mínimo 5 equipes por estado). Quanto maior a barra, mais o estado converte participação em presença na final. Compare com a taxa de premiação para identificar estados que chegam bastante mas ganham pouco.")
 
     # Scatter nota média vs volume
     nota_uf = eq_notas.groupby("UF").agg(
@@ -512,12 +523,14 @@ with tab1:
     )
     fig_scatter.update_traces(textposition="top center")
     fig_scatter.update_layout(
-        height=420,
+        height=500,
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="#faf2b2",
+        plot_bgcolor="white",
         margin={"t": 50, "b": 40, "l": 40, "r": 20},
     )
     st.plotly_chart(estilizar_fig(fig_scatter), use_container_width=True)
+    with st.expander("ℹ️ Como ler este gráfico"):
+        st.caption("Cada bolha é um estado. **Eixo X** = total de equipes participantes; **eixo Y** = nota média das equipes; **tamanho da bolha** = número de premiadas; **cor** = nota média (verde escuro = melhor). Estados no canto superior esquerdo têm poucas equipes mas alta qualidade. Estados no canto inferior direito têm grande volume mas desempenho médio — possível efeito de diluição da qualidade.")
 
 
 # ============================================================
@@ -552,14 +565,16 @@ with tab2:
                 textposition="outside",
             ))
         fig_gen_comp.update_layout(
-            barmode="group", height=380,
+            barmode="group", height=450,
             title="Participação por gênero: geral vs finalistas",
             yaxis=dict(title="% dos participantes", range=[0, 100]),
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             margin={"t": 60, "b": 10},
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#faf2b2",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="white",
         )
         st.plotly_chart(estilizar_fig(fig_gen_comp), use_container_width=True)
+        with st.expander("ℹ️ Como ler este gráfico"):
+            st.caption("Compara a % de cada gênero no total de participantes (esquerda) versus entre os finalistas (direita). Se a proporção feminina **cai** ao passar de 'todos' para 'finalistas', as participantes femininas têm menor taxa de classificação. Se **mantém ou cresce**, o desempenho é proporcional à representação.")
 
     with col_g2:
         # Equipes femininas vs mistas vs masculinas por categoria
@@ -574,18 +589,21 @@ with tab2:
 
         fig_fem_cat = px.bar(
             eq_gen_cat, x="Categoria", y="Equipes",
+            color="Tipo Equipe",
             color_discrete_map={"100% Feminina": "#E45756", "Mista / Masculina": "#4C78A8"},
             barmode="stack",
             title="Equipes femininas por categoria",
             text_auto=True,
         )
         fig_fem_cat.update_layout(
-            height=380,
+            height=450,
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             margin={"t": 60, "b": 10},
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#faf2b2",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="white",
         )
         st.plotly_chart(estilizar_fig(fig_fem_cat), use_container_width=True)
+        with st.expander("ℹ️ Como ler este gráfico"):
+            st.caption("Composição de cada categoria entre equipes 100% femininas (vermelho) e mistas/masculinas (azul). Compare Alfa e Beta para ver se a participação feminina varia com o nível — uma queda acentuada de Alfa para Beta pode indicar evasão ou barreiras de acesso no nível mais avançado.")
 
     # Gênero por estado (top 10 estados com mais participantes femininos)
     p_uf = p_filtrado.merge(
@@ -607,11 +625,13 @@ with tab2:
     )
     fig_fem_uf.update_traces(texttemplate="%{text}%", textposition="outside")
     fig_fem_uf.update_layout(
-        height=350, showlegend=False,
+        height=420, showlegend=False,
         margin={"t": 50, "b": 10, "r": 20},
-        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#faf2b2",
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="white",
     )
     st.plotly_chart(estilizar_fig(fig_fem_uf), use_container_width=True)
+    with st.expander("ℹ️ Como ler este gráfico"):
+        st.caption("Top 15 estados em proporção de participantes femininas. Barras mais altas indicam maior representatividade. Estados com alta % podem ter iniciativas de inclusão bem-sucedidas que servem de modelo para outros — vale investigar o que fazem diferente.")
 
 
 # ============================================================
@@ -643,13 +663,15 @@ with tab3:
                 textposition="outside",
             ))
         fig_funil.update_layout(
-            barmode="group", height=380,
+            barmode="group", height=450,
             title="Funil por categoria: participação → final → premiação",
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             margin={"t": 60, "b": 10},
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#faf2b2",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="white",
         )
         st.plotly_chart(estilizar_fig(fig_funil), use_container_width=True)
+        with st.expander("ℹ️ Como ler este gráfico"):
+            st.caption("Para cada categoria, as barras mostram quantas equipes participaram, chegaram à final e foram premiadas. Barras paralelas revelam se uma categoria tem critérios mais seletivos. A **razão entre Final e Total** indica a dificuldade de classificação; a **razão entre Premiadas e Final** indica a competitividade da fase final.")
 
     with col_c2:
         # Distribuição de notas por categoria — box plot
@@ -663,10 +685,12 @@ with tab3:
             labels={"nota_final": "Nota final"},
         )
         fig_box.update_layout(
-            height=380, showlegend=False,
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#faf2b2",
+            height=450, showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="white",
         )
         st.plotly_chart(estilizar_fig(fig_box), use_container_width=True)
+        with st.expander("ℹ️ Como ler este gráfico"):
+            st.caption("A **caixa** engloba os 50% centrais das notas; a **linha central** é a mediana; os **traços externos** cobrem a maioria dos valores; **pontos isolados** são outliers. Compare a posição vertical (mediana) e a altura da caixa (variabilidade) entre Alfa e Beta — uma caixa mais alta indica maior dispersão de desempenho dentro da categoria.")
 
     # Público vs privado por categoria com taxa de premiação
     pub_priv_cat = eq_cat.groupby(["Categoria", "Tipo Escola"]).agg(
@@ -682,31 +706,242 @@ with tab3:
     with col_c3:
         fig_pp = px.bar(
             pub_priv_cat, x="Categoria", y="Total",
-            color_discrete_map={"Privada": "#4C78A8", "Pública": "#72B7B2"},
+            color="Tipo Escola",
+            color_discrete_map={"Privada": "#4C78A8", "Pública": "#F58518"},
+            barmode="group",
             text_auto=True,
             title="Equipes por categoria e tipo de escola",
         )
         fig_pp.update_layout(
-            height=320,
+            height=400,
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             margin={"t": 60, "b": 10},
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#faf2b2",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="white",
         )
         st.plotly_chart(estilizar_fig(fig_pp), use_container_width=True)
+        with st.expander("ℹ️ Como ler este gráfico"):
+            st.caption("Volume de equipes públicas (laranja) vs privadas (azul) em cada categoria. Use para contextualizar as taxas de premiação: se há muito mais equipes públicas, mesmo uma taxa de premiação menor em percentual pode representar mais premiações absolutas do que o setor privado.")
 
     with col_c4:
         fig_taxa_pp = px.bar(
             pub_priv_cat, x="Categoria", y="Taxa premiação (%)",
+            color="Tipo Escola",
             barmode="group",
-            color_discrete_map={"Privada": "#4C78A8", "Pública": "#72B7B2"},
+            color_discrete_map={"Privada": "#4C78A8", "Pública": "#F58518"},
             text="Taxa premiação (%)",
             title="Taxa de premiação: pública vs privada",
         )
         fig_taxa_pp.update_traces(texttemplate="%{text}%", textposition="outside")
         fig_taxa_pp.update_layout(
-            height=320,
+            height=400,
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
             margin={"t": 60, "b": 10, "r": 20},
-            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#faf2b2",
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="white",
         )
         st.plotly_chart(estilizar_fig(fig_taxa_pp), use_container_width=True)
+        with st.expander("ℹ️ Como ler este gráfico"):
+            st.caption("Percentual de equipes premiadas entre públicas (laranja) e privadas (azul) por categoria. Uma diferença grande indica que o tipo de escola influencia o resultado. Combine com o **violin** (aba Insights) para entender se a diferença está na média geral ou apenas na cauda de alto desempenho.")
+
+
+# ============================================================
+# TAB 4 — INSIGHTS
+# ============================================================
+with tab4:
+    col_i1, col_i2 = st.columns(2)
+
+    with col_i1:
+        # Scatter de eficiência com quadrantes
+        ef = resumo_f[(resumo_f["total_equipes"] >= 5) & (resumo_f["equipes_final"] > 0)].copy()
+        ef["tx_prem_final"] = (ef["premiadas"] / ef["equipes_final"] * 100).round(1)
+
+        med_x = ef["tx_final"].median()
+        med_y = ef["tx_prem_final"].median()
+        x_min, x_max = ef["tx_final"].min(), ef["tx_final"].max()
+        y_min, y_max = ef["tx_prem_final"].min(), ef["tx_prem_final"].max()
+
+        def _textpos(tx, ty):
+            vx = "left" if tx >= med_x else "right"
+            vy = "bottom" if ty >= med_y else "top"
+            return f"{vy} {vx}"
+
+        s_min, s_max = 10, 42
+        sizes = (
+            s_min + (ef["total_equipes"] - ef["total_equipes"].min())
+            / (ef["total_equipes"].max() - ef["total_equipes"].min() + 1e-9)
+            * (s_max - s_min)
+        ).round().tolist()
+
+        fig_quad = go.Figure()
+        fig_quad.add_trace(go.Scatter(
+            x=ef["tx_final"],
+            y=ef["tx_prem_final"],
+            mode="markers+text",
+            text=ef["UF"],
+            textposition=[_textpos(r["tx_final"], r["tx_prem_final"]) for _, r in ef.iterrows()],
+            textfont=dict(size=9, color="black"),
+            marker=dict(size=sizes, color="#4C78A8", opacity=0.75,
+                        line=dict(width=1, color="white")),
+            customdata=ef[["total_equipes", "tx_final", "tx_prem_final"]].values,
+            hovertemplate=(
+                "<b>%{text}</b><br>"
+                "% na final: %{customdata[1]:.1f}%<br>"
+                "% premiados entre finalistas: %{customdata[2]:.1f}%<br>"
+                "Total de equipes: %{customdata[0]:.0f}"
+                "<extra></extra>"
+            ),
+            showlegend=False,
+        ))
+        fig_quad.add_vline(x=med_x, line_dash="dash", line_color="gray", opacity=0.5)
+        fig_quad.add_hline(y=med_y, line_dash="dash", line_color="gray", opacity=0.5)
+        for ax, ay, txt, xanch, yanch in [
+            (x_max, y_max, "🏆 Elite",             "right", "top"),
+            (x_min, y_max, "⚡ Eficientes",         "left",  "top"),
+            (x_max, y_min, "📈 Volume",             "right", "bottom"),
+            (x_min, y_min, "🌱 Em desenvolvimento", "left",  "bottom"),
+        ]:
+            fig_quad.add_annotation(
+                x=ax, y=ay, text=txt, showarrow=False,
+                font=dict(size=10, color="#888"),
+                xanchor=xanch, yanchor=yanch,
+            )
+        fig_quad.update_layout(
+            height=520,
+            xaxis_title="% de equipes classificadas para a final",
+            yaxis_title="% de finalistas premiados",
+            margin={"t": 60, "b": 50, "l": 50, "r": 20},
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="white",
+        )
+        st.plotly_chart(estilizar_fig(fig_quad), use_container_width=True)
+        with st.expander("ℹ️ Como ler este gráfico"):
+            st.caption("**Eixo X**: % de equipes que chegaram à final. **Eixo Y**: % das finalistas que foram premiadas. **Tamanho da bolha**: volume total de equipes. As linhas tracejadas são as medianas — dividem os estados em 4 perfis: 🏆 **Elite** (alto nos dois eixos), ⚡ **Eficientes** (poucos vão à final, mas quem vai ganha), 📈 **Volume** (muitos chegam à final mas poucos premiam) e 🌱 **Em desenvolvimento** (baixo nos dois). Foco estratégico: estados no quadrante Volume têm maior potencial de melhoria rápida.")
+
+    with col_i2:
+        # Violin plot — notas por tipo de escola × categoria
+        eq_violin = eq_notas[
+            eq_notas["Categoria"].isin(["Alfa", "Beta"]) &
+            eq_notas["Tipo Escola"].isin(["Pública", "Privada"]) &
+            (eq_notas["nota_final"] > 0)
+        ].copy()
+
+        cores_tipo = {"Pública": "#F58518", "Privada": "#4C78A8"}
+        fig_violin = go.Figure()
+        for tipo in ["Pública", "Privada"]:
+            for cat in ["Alfa", "Beta"]:
+                dados = eq_violin[
+                    (eq_violin["Tipo Escola"] == tipo) & (eq_violin["Categoria"] == cat)
+                ]["nota_final"]
+                fig_violin.add_trace(go.Violin(
+                    x=[cat] * len(dados),
+                    y=dados,
+                    name=tipo,
+                    legendgroup=tipo,
+                    showlegend=(cat == "Alfa"),
+                    side="negative" if tipo == "Pública" else "positive",
+                    line_color=cores_tipo[tipo],
+                    fillcolor=cores_tipo[tipo],
+                    opacity=0.6,
+                    meanline_visible=True,
+                    points="outliers",
+                ))
+        fig_violin.update_layout(
+            violingap=0, violinmode="overlay",
+            height=520,
+            title="Distribuição de notas: pública vs. privada por categoria",
+            yaxis_title="Nota final",
+            xaxis_title="Categoria",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02),
+            margin={"t": 60, "b": 50, "l": 50, "r": 20},
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="white",
+        )
+        st.plotly_chart(estilizar_fig(fig_violin), use_container_width=True)
+        with st.expander("ℹ️ Como ler este gráfico"):
+            st.caption("Cada metade do violino é um tipo de escola: **laranja (esquerda)** = pública, **azul (direita)** = privada. A **largura** em cada ponto do eixo Y indica quantas equipes tiveram aquela nota — onde o violino é mais largo, há mais equipes com aquele desempenho. A **linha central** é a média. Se o violino privado é estreito e alto, as privadas têm uma 'cauda de elite'; se toda a figura está deslocada para cima, a diferença é sistêmica em toda a distribuição.")
+
+    # Sankey — funil de conversão segmentado
+    eq_sankey = eq_filtrado[
+        eq_filtrado["Categoria"].isin(["Alfa", "Beta"]) &
+        eq_filtrado["Tipo Escola"].isin(["Pública", "Privada"])
+    ].copy()
+
+    nodes_sk = ["Alfa", "Beta", "Pública", "Privada", "Premiada", "Não premiada"]
+    node_colors_sk = ["#72B7B2", "#4C78A8", "#F58518", "#9ecae1", "#f4c430", "#d0cfc8"]
+
+    def _conta(mask):
+        return int(mask.sum())
+
+    links_raw = [
+        ("Alfa",    "Pública",      _conta((eq_sankey["Categoria"] == "Alfa") & (eq_sankey["Tipo Escola"] == "Pública"))),
+        ("Alfa",    "Privada",      _conta((eq_sankey["Categoria"] == "Alfa") & (eq_sankey["Tipo Escola"] == "Privada"))),
+        ("Beta",    "Pública",      _conta((eq_sankey["Categoria"] == "Beta") & (eq_sankey["Tipo Escola"] == "Pública"))),
+        ("Beta",    "Privada",      _conta((eq_sankey["Categoria"] == "Beta") & (eq_sankey["Tipo Escola"] == "Privada"))),
+        ("Pública", "Premiada",     _conta((eq_sankey["Tipo Escola"] == "Pública") & eq_sankey["Prem"].notna())),
+        ("Pública", "Não premiada", _conta((eq_sankey["Tipo Escola"] == "Pública") & eq_sankey["Prem"].isna())),
+        ("Privada", "Premiada",     _conta((eq_sankey["Tipo Escola"] == "Privada") & eq_sankey["Prem"].notna())),
+        ("Privada", "Não premiada", _conta((eq_sankey["Tipo Escola"] == "Privada") & eq_sankey["Prem"].isna())),
+    ]
+    links_raw = [(s, t, v) for s, t, v in links_raw if v > 0]
+
+    link_colors = {
+        "Alfa":          "rgba(114,183,178,0.55)",
+        "Beta":          "rgba(76,120,168,0.55)",
+        "Pública":       "rgba(245,133,24,0.55)",
+        "Privada":       "rgba(158,202,225,0.55)",
+    }
+
+    fig_sankey = go.Figure(go.Sankey(
+        arrangement="snap",
+        node=dict(
+            label=nodes_sk,
+            color=node_colors_sk,
+            pad=25,
+            thickness=24,
+            line=dict(color="black", width=0.5),
+        ),
+        link=dict(
+            source=[nodes_sk.index(s) for s, t, v in links_raw],
+            target=[nodes_sk.index(t) for s, t, v in links_raw],
+            value=[v for s, t, v in links_raw],
+            color=[link_colors.get(s, "rgba(180,180,180,0.4)") for s, t, v in links_raw],
+        ),
+    ))
+    fig_sankey.update_layout(
+        height=500,
+        title="Fluxo de equipes: categoria → tipo de escola → resultado",
+        margin={"t": 60, "b": 20, "l": 20, "r": 20},
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="black", size=13),
+    )
+    st.plotly_chart(fig_sankey, use_container_width=True)
+    with st.expander("ℹ️ Como ler este gráfico"):
+        st.caption("Leia da **esquerda para a direita**. As faixas saem das categorias (Alfa/Beta), passam pelo tipo de escola (Pública/Privada) e chegam ao resultado (Premiada/Não premiada). A **espessura de cada faixa** é proporcional ao número de equipes — faixas mais largas = mais equipes naquele caminho. Use para identificar qual combinação categoria + tipo de escola produz mais premiadas, e onde o funil perde mais equipes.")
+
+    # Treemap — alcance vs desempenho por região e estado
+    eq_treemap = eq_filtrado.copy()
+    eq_treemap["Região Nome"] = eq_treemap["Região"].map(regioes_map).fillna("Sem região")
+
+    treemap_data = eq_treemap.groupby(["Região Nome", "UF"]).agg(
+        Total=("ID", "count"),
+        Premiadas=("Prem", lambda x: x.notna().sum()),
+    ).reset_index()
+    treemap_data["Taxa de premiação (%)"] = (treemap_data["Premiadas"] / treemap_data["Total"] * 100).round(1)
+
+    fig_treemap = px.treemap(
+        treemap_data,
+        path=[px.Constant("Brasil"), "Região Nome", "UF"],
+        values="Total",
+        color="Taxa de premiação (%)",
+        color_continuous_scale="RdYlGn",
+        color_continuous_midpoint=treemap_data["Taxa de premiação (%)"].median(),
+        title="Alcance (tamanho) e desempenho (cor) por região e estado",
+        hover_data={"Total": True, "Premiadas": True, "Taxa de premiação (%)": True},
+        labels={"Total": "Equipes", "Taxa de premiação (%)": "Taxa premiação (%)"},
+    )
+    fig_treemap.update_layout(
+        height=580,
+        margin={"t": 60, "b": 10, "l": 10, "r": 10},
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(color="black", size=13),
+    )
+    st.plotly_chart(fig_treemap, use_container_width=True)
+    with st.expander("ℹ️ Como ler este gráfico"):
+        st.caption("O **tamanho** de cada retângulo indica o volume de equipes naquele estado ou região. A **cor** indica a taxa de premiação: 🟢 verde escuro = alto desempenho, 🔴 vermelho = baixo desempenho. Clique em uma região para expandir os estados dentro dela. **Retângulos grandes e vermelhos** são o alvo prioritário: alto volume com baixo aproveitamento — máximo potencial de melhoria com intervenção direcionada.")
